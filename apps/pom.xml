@@ -29,6 +29,7 @@
     <description>ONOS sample applications</description>
 
     <modules>
+        <module>onos-app-reorder</module>
         <module>aaa</module>
         <module>acl</module>
         <module>faultmanagement</module>
