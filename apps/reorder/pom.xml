@@ -37,6 +37,7 @@
         <onos.app.category>Traffic Steering</onos.app.category>
         <onos.app.url>http://onosproject.org</onos.app.url>
         <onos.app.readme>reorder</onos.app.readme>
+        <checkstyle.skip>true</checkstyle.skip>
     </properties>
 
     <dependencies>
