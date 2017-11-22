@@ -28,7 +28,7 @@ import org.onlab.packet.IPv4;
 import org.onlab.packet.IpAddress;
 import org.onlab.packet.IpPrefix;
 import org.onlab.packet.MacAddress;
-import org.onlab.packet.TCP;
+import org.onlab.packet.UDP;
 import org.onosproject.cfg.ComponentConfigService;
 import org.onosproject.core.ApplicationId;
 import org.onosproject.core.CoreService;
@@ -54,6 +54,7 @@ import org.onosproject.net.intent.IntentService;
 import org.onosproject.net.packet.DefaultOutboundPacket;
 import org.onosproject.net.packet.OutboundPacket;
 import org.onosproject.net.packet.PacketContext;
+import org.onosproject.net.packet.PacketPriority;
 import org.onosproject.net.packet.PacketProcessor;
 import org.onosproject.net.packet.PacketService;
 import org.onosproject.net.topology.TopologyService;
@@ -110,6 +111,7 @@ public class ReorderPackets {
                     "default is 10 sec")
     private int flowTimeout = DEFAULT_TIMEOUT;
 
+    private HandoverPacketProcessor processor = new HandoverPacketProcessor();
 
     Map baseStations = new HashMap();
 
@@ -127,12 +129,20 @@ public class ReorderPackets {
 
     @Activate
     protected void activate() {
-        log.info("Started");
+        cfgService.registerProperties(getClass());
+        appId = coreService.registerApplication("org.onosproject.reorder");
+        packetService.addProcessor( processor, PacketProcessor.director(1));
+//        packetService.requestPackets(DefaultTrafficSelector.builder().matchIPDst(IpPrefix.valueOf("6.6.6.6/32")).build(), PacketPriority.REACTIVE,appId);
+        log.info("Reorder ({}) Started !!!!!!!!!!!", appId.id());
     }
 
     @Deactivate
     protected void deactivate() {
-        log.info("Stopped");
+        cfgService.unregisterProperties(getClass(), false);
+        packetService.removeProcessor(processor);
+//        packetService.cancelPackets(DefaultTrafficSelector.builder().matchIPDst(IpPrefix.valueOf("6.6.6.6/32")).build(),PacketPriority.REACTIVE,appId);
+        processor = null;
+        log.info("Reorder ({}) Stopped!",appId.id());
     }
 
     private class handoverStatus {
@@ -287,10 +297,11 @@ public class ReorderPackets {
         return null;
     }
 
-    private class HandoverControllerPacketProcessor implements PacketProcessor {
+    private class HandoverPacketProcessor implements PacketProcessor {
         @Override
         public void process(PacketContext context) {
             // If processed, then return
+            log.info("There is a packet comming to HandoverPacketProcessor");
             if (context.isHandled()) {
                 return;
             }
@@ -298,12 +309,13 @@ public class ReorderPackets {
             IPacket pkt = context.inPacket().parsed().getPayload();
             if (pkt instanceof IPv4) {
                 IPacket payload = pkt.getPayload();
-                if (payload instanceof TCP) { // This is a TCP packet and we will deparse its payload.
+                if (payload instanceof UDP) { // This is a TCP packet and we will deparse its payload.
                     IPacket tcpPayload = payload.getPayload();
                     IPacket controlPayload = tcpPayload.getPayload();
                     byte[] serializedData = controlPayload.serialize();
                     int messageType = -1;
                     String upperPayload = serializedData.toString();
+                    log.info(upperPayload);
                     if (upperPayload.startsWith("Reorder-0")) {
                         messageType = 0;
                         startHandover(upperPayload);
@@ -313,6 +325,7 @@ public class ReorderPackets {
                         int handoverId = getNumberFromPayload(upperPayload);
                         if (handoverId != -1) {
                             redirectPktsToBuffer(handoverId);
+                            log.info("A valid type {} reorder message if received.\n", messageType);
                         } else {
                             return;
                         }
@@ -320,6 +333,7 @@ public class ReorderPackets {
                         messageType = 2;
                         int handoverId = getNumberFromPayload(upperPayload);
                         if (handoverId != -1) {
+                            log.info("A valid type {} reorder message if received.\n", messageType);
                             sendBufferedPktsToUE(handoverId);
                         } else {
                             return;
@@ -328,6 +342,7 @@ public class ReorderPackets {
                         messageType = 3;
                         int handoverId = getNumberFromPayload(upperPayload);
                         if (handoverId != -1) {
+                            log.info("A valid type {} reorder message if received.\n", messageType);
                             cleanUpFlowRules(handoverId);
                         } else {
                             return;
